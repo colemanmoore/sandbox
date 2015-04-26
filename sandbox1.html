@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+ 	<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+    <script src="threeJS/build/three.min.js"></script>
+    <script src="threeJS/examples/js/controls/FirstPersonControls.js"></script>
+    <script src="threeJS/examples/js/controls/TrackballControls.js"></script>
+    <script src="threeJS/examples/js/renderers/SoftwareRenderer.js"></script>
+</head>
+<body>
+
+    <!--<script src ="sandbox1.js">-->
+    <script>
+    
+    // window.onload = function() {
+
+    // };
+
+    //ar renderer;
+    var camera, controls, scene, renderer;
+    var container;
+    var start = Date.now();
+    var RENDER_WIDTH = window.innerWidth, RENDER_HEIGHT = window.innerHeight;
+    var clock = new THREE.Clock();
+
+    init();
+    animate();
+
+    function init() {
+
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+
+     //renderer.setSize( 800, 600 );
+        //document.body.appendChild( renderer.domElement );
+
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        //renderer.shadowMapEnabled = true;
+
+
+        container.appendChild( renderer.domElement );
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+                    45,             // Field of view
+                    RENDER_WIDTH / RENDER_HEIGHT,      // Aspect ratio
+                    0.1,            // Near plane
+                    10000           // Far plane
+                );
+        //controls = new THREE.TrackballControls( camera );
+        controls = new THREE.FirstPersonControls(camera);
+        controls.movementSpeed = 1000;
+        controls.lookSpeed = 0.125;
+        controls.lookVertical = false;
+
+        camera.position.set( 100, 100, 100 );
+        camera.lookAt( scene.position );
+
+        var geometry = new THREE.CubeGeometry( 5, 5, 5 );
+        //geometry.color.setRGB
+        //geometry.castShadow = true;
+        var material = new THREE.MeshLambertMaterial( { color: 0xAdA79b, shininess: 50 } );
+
+        var mesh = new THREE.Mesh( geometry, material );
+        scene.add( mesh );
+
+        //THREE.FirstPersonControls( mesh );
+
+        var light = new THREE.PointLight( 0xffffff, 0.7 );
+        light.position.set( 10, 10, 10 );
+        scene.add( light );
+
+        // var light2 = new THREE.AmbientLight( 0x409940 ); // soft white light
+        // scene.add( light );
+
+        //scene.fog = new THREE.Fog( 0x808080, 2000, 4000 );
+
+        renderer.render( scene, camera );
+
+    };
+
+    function animate() {
+
+		requestAnimationFrame( animate );
+
+		render();
+		//stats.update();
+
+	}
+
+	function render() {
+
+				var timer = Date.now() - start;
+
+                var delta = clock.getDelta();
+
+				controls.update( );
+
+				renderer.render( scene, camera );
+
+	}
+    
+    </script>
+
+
+</body>
+</html>

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SANDBOX2</title>    
+    <script src="three.min.js"></script>
+    <!-- <script src="TrackballControls.js"></script> -->
+    <script src="MUKELockControls.js"></script>
+</head>
+<body>
+    <script>
+
+    var RENDER_WIDTH = window.innerWidth, RENDER_HEIGHT = window.innerHeight;
+    var camera, controls, scene, renderer;
+    var lattice1, lattice2, lattice3, lattice4;
+    var levelsArray = new Array();
+    var rotator = new THREE.Matrix4();
+    var ground, railroad;
+    var ray;
+    var time = Date.now();
+    var objects = [];
+    var sunObject;
+    var sunAndMoon, moon;
+    var shinyTower;
+    var shinyTimer = 0;
+    var skyColor = new THREE.Color();
+    skyColor.setRGB(22/255, 155/255, 222/255);
+    var animationFrame = 0;
+
+    setUpPointerLock();
+    init();
+    animate();
+
+    function init() {
+        
+        scene = new THREE.Scene();
+
+        // CAMERA
+        camera = new THREE.PerspectiveCamera(
+            35,             // Field of view
+            RENDER_WIDTH / RENDER_HEIGHT,      // Aspect ratio
+            0.1,            // Near plane
+            10000           // Far plane
+        );
+
+        camera.lookAt( scene.position );
+
+        
+        // RENDERER
+        renderer = new THREE.WebGLRenderer( { antialias: true }  );
+        renderer.setSize( RENDER_WIDTH, RENDER_HEIGHT );
+        renderer.setClearColor(0x169BDE, 1); // SKY COLOR
+
+        renderer.shadowMapEnabled = true;
+        renderer.shadowMapSoft = true;
+
+        renderer.shadowCameraNear = 0.1;
+        renderer.shadowCameraFar = camera.far;
+        renderer.shadowCameraFov = 35;
+
+        renderer.shadowMapBias = 0.0039;
+        renderer.shadowMapDarkness = 0.5;
+        renderer.shadowMapWidth = 1024;
+        renderer.shadowMapHeight = 1024;
+        
+        document.body.appendChild( renderer.domElement );
+
+
+        // CONTROLS
+        //controls = new THREE.TrackballControls( camera );
+        controls = new THREE.PointerLockControls( camera );
+        controls.enabled = true;
+        scene.add( controls.getObject() );
+
+        ray = new THREE.Raycaster();
+        ray.ray.direction.set( 0, -1, 0 );
+
+        buildGround();
+        buildObjects();
+
+        // LIGHTS
+        var directionalLight = new THREE.DirectionalLight( 0xffffff, 1.0 );
+        directionalLight.position.set( 0, 100, 100 );
+        //directionalLight.castShadow = true;
+        directionalLight.shadowDarkness = 0.5;
+        directionalLight.shadowCameraVisible = true;
+        scene.add( directionalLight );
+
+        var shinyTowerSpotlight = new THREE.PointLight( 0xff0000, 1.0);
+        //directionalLight.lookAt(shinyTower.position);
+        shinyTowerSpotlight.position.set( 0, 1700, 0);
+
+        scene.add(shinyTowerSpotlight);
+
+
+        buildStars();
+
+        //scene.add( new THREE.AmbientLight( 0x222222 ) );
+
+        var hex = (Math.random() * 0xffffff);
+        scene.fog = new THREE.Fog(  0xffffff , 20, 8000 );
+
+        renderer.render( scene, camera );
+    }
+
+    function buildGround() {
+        var groundGeometry = new THREE.CubeGeometry(10000, 0.1, 10000);
+        var groundMaterial = new THREE.MeshPhongMaterial({ specular: 0x3EDE16, shininess: 4 });
+        groundMaterial.color.r =(0);
+        groundMaterial.color.g = (0.75);
+        groundMaterial.color.b = (0);
+        groundMaterial.ambient.copy( groundMaterial.color );
+        var groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+        groundMesh.receieveShadow = true;
+        //ground = new THREE.Object3D();
+       // ground.add(groundMesh);
+        //ground.receieveShadow = true;
+        scene.add(groundMesh);
+    }
+
+    function buildStars() {
+        //make the light a sun
+        var sunMaterial = new THREE.MeshBasicMaterial({color: 0xF6FF00});
+        var sunRadius = 100.0;
+        var sunMesh = new THREE.Mesh(new THREE.SphereGeometry( sunRadius, 32, 16 ), sunMaterial );
+
+        sunObject = new THREE.Object3D();
+        sunObject.add(sunMesh);
+
+        
+        var fractalSize = 4;
+        var subSunMesh;
+        var subSunDistance;
+        var previousSubSunDistance = 0;
+        var subSunGeo;
+
+        
+        for(var i = 1; i <= fractalSize; i++) {
+            subSunGeo = new THREE.SphereGeometry( sunRadius * Math.pow(0.3, i) , 32, 16 );
+            subSunDistance = 150 + (150/ i) + previousSubSunDistance;
+            for(var j = 0; j < 4; j++){
+                subSunMesh =  new THREE.Mesh( subSunGeo, sunMaterial);
+                
+                if(j == 0) {
+                    subSunMesh.position.set(subSunDistance, 0, 0);
+                }
+                if(j == 1) { 
+                    subSunMesh.position.set(-1 * subSunDistance, 0, 0);
+                }
+                if(j == 2) {
+                    subSunMesh.position.set(0, 0, subSunDistance);
+                }
+                if(j == 3) {
+                    subSunMesh.position.set(0, 0, -1 * subSunDistance);
+                }
+                sunObject.add(subSunMesh);
+                
+                previousSubSunDistance = subSunDistance;
+            }
+
+        }
+
+        sunObject.position.set(0, 1000, 0);
+
+        var moonMesh = new THREE.Mesh(new THREE.SphereGeometry( 200, 32, 16 ), new THREE.MeshBasicMaterial({color: 0xFCFCF2}) );
+        moonMesh.position.set(0, -1000, 0);
+        moon = moonMesh;
+
+        sunAndMoon = new THREE.Object3D();
+        sunAndMoon.add(sunObject);
+        sunAndMoon.add(moonMesh);
+
+        
+        scene.add(sunAndMoon )
+    }
+
+    function buildRailroad() {
+        var railroad = new THREE.Object3D();
+
+        var trackGeo = new THREE.CubeGeometry(10000, 8, 8);
+        var trackMaterial = new THREE.MeshPhongMaterial({shininess:100, specular: 100});
+        trackMaterial.color.setHex(0x545454);
+
+        var track1 = new THREE.Mesh(trackGeo, trackMaterial);
+        var track2 = new THREE.Mesh(trackGeo, trackMaterial);
+        track1.position.z = -50;
+        track2.position.z = 50;
+        track1.position.y = 6;
+        track2.position.y = 6;
+        railroad.add(track1);
+        railroad.add(track2);
+
+
+        var woodGeo = new THREE.CubeGeometry(30, 2, 170);
+        var woodMaterial = new THREE.MeshPhongMaterial({shininess:10});
+        woodMaterial.color.setHex(0x6E4709);
+
+        var trackStart = -10000;
+        var woodMesh;
+
+        for(var i = 0; i < 1000; i++ ) {
+
+            woodMesh = new THREE.Mesh( woodGeo, woodMaterial);
+            woodMesh.position.x = trackStart + (i* 200);
+            woodMesh.position.y = 1;
+
+            railroad.add(woodMesh);
+
+        }
+
+        return railroad;
+    }
+
+    function buildMotorcycle() {
+
+    }
+
+    function buildObjects() {
+
+        lattice1 = buildLattice( true );
+        lattice1.position.z = 2000;
+        scene.add(lattice1);
+
+        /*
+        var currentLattice = new THREE.Object3D();
+        for(var i = 0; i < 10; i++) {
+            currentLattice = lattice1.clone();
+            currentLattice.position.x = i * 100 + 100;
+            scene.add(currentLattice);
+        }
+        */
+
+        var zFightTower = new THREE.CubeGeometry(200, 5, 200);
+        var zFightMaterial1 = new THREE.MeshBasicMaterial();
+        zFightMaterial1.color.setHex(0xff0000);
+        var zFightMaterial2 = new THREE.MeshBasicMaterial();
+        zFightMaterial2.color.setHex(0x0000ff);
+        var zFightOne = new THREE.Mesh(zFightTower, zFightMaterial1);
+        var zFightTwo = new THREE.Mesh(zFightTower, zFightMaterial2);
+        zFightOne.position.set(1000, 0, 1000);
+        zFightTwo.position.set(1000, 0, 1000);
+        scene.add(zFightOne);
+        scene.add(zFightTwo);
+
+
+        //lattice3 = buildLattice();
+        //lattice3.position.z = 200;
+        //scene.add(lattice3);
+
+        lattice4 = buildLattice(false);
+        lattice4.position.x = 2000;
+        lattice4.position.y = 400;
+        scene.add(lattice4);
+
+
+        lattice2 = buildLattice( false );
+        //lattice2.position.set(100, 150, 100);
+        lattice2.position.x = -2000;
+        lattice2.position.y = 400;
+        scene.add(lattice2);
+
+        shinyTower = buildShinyTower();
+        var towerChild;
+        var towerChildMaterial = new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 100 });
+        towerChildMaterial.color.setHex(0x545454);
+        var towerChildGeometry;
+
+        for(var i = 0; i < 9; i++){
+            towerChildGeometry = new THREE.CubeGeometry(20, 3000/(i + 1), 20);
+            towerChild = new THREE.Mesh(towerChildGeometry, towerChildMaterial);
+            var currentTowerChild;
+            for(var j = 0; j < 8; j++){
+                currentTowerChild = towerChild.clone();
+                
+                currentTowerChild.applyMatrix( new THREE.Matrix4().makeRotationY(j * (2* Math.PI / 9) ) );
+
+                currentTowerChild.translateX( (i * 100) + 100);
+
+
+                //currentTowerChild.position.x = i * 100;
+                scene.add(currentTowerChild);
+            }
+
+        }
+
+
+        var structureTopGeometry = new THREE.CubeGeometry(200, 200, 200);
+        var structureTopMaterial = new THREE.MeshBasicMaterial();
+        structureTopMaterial.color.setHex(0xff0000);
+        //structureTopMaterial.ambient.setHex(0xff0000);
+        var structureTop = new THREE.Mesh(structureTopGeometry, structureTopMaterial);
+        structureTop.rotation.x = Math.PI/4;
+        //structureTop.rotation.y = Math.PI/4;
+        //structureTop.rotation.z = Math.PI/4;
+        //structureTop.translateY( 10000);
+        //structureTop.position.y = 2000;
+
+        //structureTop.applyMatrix( new THREE.Matrix4().makeRotationY( Math.PI / 4 ) );
+        //structureTop.applyMatrix( new THREE.Matrix4().makeRotationX( Math.PI / 4 ) );
+        structureTop.applyMatrix( new THREE.Matrix4().makeRotationZ( Math.PI / 4 ) );
+        structureTop.rotation.x = Math.PI/4;
+        structureTop.position.y = 1800;
+
+        scene.add(structureTop);
+
+
+        //shinyTower.position.z = -200;
+        scene.add(shinyTower);
+
+
+        railroad = buildRailroad();
+        railroad.position.z = 1500;
+        scene.add(railroad);
+
+
+    }
+
+    function buildLattice( randomColor ) {
+
+        var lattice = new THREE.Object3D();
+        var level;
+        var levelCenterX, levelCenterZ;
+
+        var sphere = new THREE.SphereGeometry( 1, 32, 16 );
+        var sphereMaterial;
+        if(randomColor == false) {
+            sphereMaterial = new THREE.MeshBasicMaterial();
+            sphereMaterial.color.setHex(0xffffff);
+        }
+        var sphereMesh;
+        var start = -1;
+        for(var i = 0; i < 50; i++) {
+
+            var level = new THREE.Object3D();
+
+            for(var j = 0; j < 10; j++) {
+                for(var k = 0; k < 10; k++){
+                    if(randomColor == true) {
+                        sphereMaterial = new THREE.MeshBasicMaterial(/*{shininess: 100, specular: 0xffffff, opacity: 1}*/);
+                        sphereMaterial.color.setHex( Math.random() * 0xffffff);
+                    }
+                    sphereMesh = new THREE.Mesh( sphere, sphereMaterial );
+                    sphereMesh.position.x = start + 3 * k;
+                    sphereMesh.position.z = start + 3 * j;
+                    sphereMesh.position.y = start + 3 * i;
+
+                    //objects.push( sphereMesh );
+                    level.add(sphereMesh);
+                }
+                
+            }
+            level.position.set(12.5, 3 * i - 1, 12.5);
+            //level.position.x = -14.5;
+            //level.position.z = -14.5;
+            //level.castShadow = true;
+            //level.receieveShadow = true;
+
+            var positionLocator = new THREE.Mesh(
+                new THREE.SphereGeometry(2, 32, 16),
+                new THREE.MeshBasicMaterial({color: 0x00FF00}));
+            positionLocator.position.set( level.position.x, level.position.y, level.position.z);
+            level.add(positionLocator);
+
+            levelCenterX = level.position.x + 12.5;
+            levelCenterZ = level.position.z + 12.5;
+
+            levelsArray[i] = level;
+            lattice.add(level);
+        }
+        //lattice.position.y = 16;
+
+        //lattice.position.set(levelCenterX, 0, levelCenterZ);
+        lattice.position.set(0,0,0);
+
+        /*
+        var latticePositionLocator = new THREE.Mesh(
+                new THREE.SphereGeometry(5, 32, 16),
+                new THREE.MeshBasicMaterial({color: 0x000000}));
+        latticePositionLocator.position.set( lattice.position.x, 30, lattice.position.z);
+        lattice.add(latticePositionLocator);
+        */
+
+        return lattice;
+
+    }
+
+    function buildShinyTower() {
+        var tower = new THREE.Object3D();
+        var cubeGeometry = new THREE.CubeGeometry(50, .25, 50);
+        var cubeMaterial = new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 100 });
+        cubeMaterial.color.setHex(0x545454);
+        var cubeMesh = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        for(var i = 0; i < 6000; i++) {
+            cubeMesh = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cubeMesh.castShadow = true;
+            cubeMesh.position.y = .25 * i;
+            tower.add(cubeMesh);
+        }
+        //tower.position.y = 25;
+        return tower;
+    }
+
+    function animate() {
+        requestAnimationFrame( animate );
+        //moveLevels();
+
+        ray.ray.origin.copy( controls.getObject().position );
+        ray.ray.origin.y -= 10;
+
+        var intersections = ray.intersectObjects( objects );
+
+        if ( intersections.length > 0 ) {
+
+            var distance = intersections[ 0 ].distance;
+
+            if ( distance > 0 && distance < 10 ) {
+
+                controls.isOnObject( true );
+
+            }
+
+        }
+
+        //console.log(sunAndMoon.rotation.x);
+
+        moveStars();
+        changeSkyColor();
+
+        //moveLatticeTowers(1);
+        //moveLatticeTowers(3);
+        moveLattice2( lattice2 );
+        moveLattice2( lattice4 );
+        moveShinyTower( shinyTower );
+        controls.update( Date.now() - time );
+        renderer.render( scene, camera );
+        time = Date.now();
+        if(animationFrame == Math.PI * 10000) animationFrame = 0;
+       animationFrame++;
+    }
+
+    function moveLatticeTowers( towerNumber ) {
+
+        var i = 0;
+
+        if(towerNumber ==1) {
+
+            // var latticeLevels = lattice1.children;
+            // for(var i = 0; i < latticeLevels.size ; i++){
+            //     latticeLevels[i].rotation.x = (i * Math.PI/180) / 500
+            // }
+
+
+            
+            lattice1.traverse( function ( level ) {
+
+                if(level instanceof THREE.Object3D) {
+                    rotator.makeRotationY((i * Math.PI/180) / 500);
+                    level.applyMatrix(rotator);
+                }
+            
+                i++;
+            });
+            
+        }
+        else if(towerNumber ==3) {
+            lattice3.traverse( function ( level ) {
+
+                rotator.makeRotationY((i * Math.PI/180) / 1000);
+                level.applyMatrix(rotator);
+            
+                i++;
+            });
+        }
+
+    }
+
+    function moveLattice2( latticeToMove ) {
+        var i = 0;
+        latticeToMove.traverse( function ( level ) {
+        
+        /*
+        if ( object instanceof THREE.Mesh ) {
+            object.castShadow = true;
+            object.receiveShadow = true;
+        }
+        */
+        rotator.makeRotationX((i * Math.PI/180) / 500);
+        level.applyMatrix(rotator);
+        
+        i++;
+
+        } );
+    }
+
+    function moveStars() {
+
+        sunObject.applyMatrix(new THREE.Matrix4().makeRotationY(3 * Math.PI/180) );
+        sunAndMoon.applyMatrix(new THREE.Matrix4().makeRotationX(0.1 * Math.PI/180) );
+
+    }
+
+    function changeSkyColor() {
+        var skyMultiply = 1 - Math.abs( Math.sin( (sunAndMoon.rotation.x / 2)  ) ) ;
+        var newColor = new THREE.Color();
+        newColor.setRGB(skyColor.r * skyMultiply, skyColor.g * skyMultiply, skyColor.b * skyMultiply );
+        var clearHex = "0x" + newColor.getHexString();
+        renderer.setClearColor(newColor, 1 );
+    }
+
+    function moveShinyTower( towerToSpin ) {
+        /*
+        var levels = shinyTower.children;
+        for(var i = 0; i < levels.size; i++){
+            rotator.makeRotationY((i * Math.PI/180) / 200);
+            levels[i].applyMatrix(rotator);
+        }
+        */
+
+        var i = 0;
+        if(shinyTimer < 150 && shinyTimer >= 0) {
+            towerToSpin.traverse( function( level ) {
+                rotator.makeRotationY((i * Math.PI/180) / 1000);
+                level.applyMatrix(rotator);
+                i++;
+            });
+            shinyTimer++;
+        }
+        else if (shinyTimer > -150 && shinyTimer < 0 ){
+            towerToSpin.traverse( function( level ) {
+                rotator.makeRotationY(-1 * (i * Math.PI/180) / 1000);
+                level.applyMatrix(rotator);
+                i++;
+            });
+            shinyTimer++;
+        }
+        else if( shinyTimer >= 150) {
+            towerToSpin.traverse( function( level ) {
+                rotator.makeRotationY((i * Math.PI/180) / 1000);
+                level.applyMatrix(rotator);
+                i++;
+            });
+            shinyTimer = -149;
+        }
+    }
+
+    function setUpPointerLock() {
+        var havePointerLock = 'pointerLockElement' in document || 'mozPointerLockElement' in document || 'webkitPointerLockElement' in document;
+
+            //if ( havePointerLock ) {
+
+                var element = document.body;
+                //controls.enabled = true;
+                //element.requestPointerLock();
+
+                var pointerlockchange = function ( event ) {
+
+                    if ( document.pointerLockElement === element || document.mozPointerLockElement === element || document.webkitPointerLockElement === element ) {
+
+                        controls.enabled = true;
+
+                    } else {
+
+                        controls.enabled = false;
+
+                    }
+
+                }
+
+                // Hook pointer lock state change events
+                document.addEventListener( 'pointerlockchange', pointerlockchange, false );
+                document.addEventListener( 'mozpointerlockchange', pointerlockchange, false );
+                document.addEventListener( 'webkitpointerlockchange', pointerlockchange, false );
+
+                document.addEventListener( 'click', function ( event ) {
+
+                    // Ask the browser to lock the pointer
+                    element.requestPointerLock = element.requestPointerLock || element.mozRequestPointerLock || element.webkitRequestPointerLock;
+
+                    if ( /Firefox/i.test( navigator.userAgent ) ) {
+
+                        var fullscreenchange = function ( event ) {
+
+                            if ( document.fullscreenElement === element || document.mozFullscreenElement === element || document.mozFullScreenElement === element ) {
+
+                                document.removeEventListener( 'fullscreenchange', fullscreenchange );
+                                document.removeEventListener( 'mozfullscreenchange', fullscreenchange );
+
+                                element.requestPointerLock();
+                            }
+
+                        }
+
+                        document.addEventListener( 'fullscreenchange', fullscreenchange, false );
+                        document.addEventListener( 'mozfullscreenchange', fullscreenchange, false );
+
+                        element.requestFullscreen = element.requestFullscreen || element.mozRequestFullscreen || element.mozRequestFullScreen || element.webkitRequestFullscreen;
+
+                        element.requestFullscreen();
+
+                    } else {
+
+                        element.requestPointerLock();
+
+                    }
+
+                }, false );
+
+    }
+
+
+    </script>
+</body>
+</html>
